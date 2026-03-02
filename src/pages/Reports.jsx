@@ -1,3 +1,4 @@
+// src/pages/Reports.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import { Card, TEXT_DIM, GhostButton } from "../components/ui/UI";
 
@@ -33,7 +34,6 @@ function Gauge180({ value }) {
 
   const arcPath = `M ${startX} ${startY} A ${r} ${r} 0 0 1 ${endX} ${endY}`;
 
-  // For stroke-dasharray/dashoffset we need an accurate length.
   // Semicircle length = πr
   const L = Math.PI * r;
   const filled = (v / 100) * L;
@@ -105,6 +105,36 @@ function Gauge180({ value }) {
           Overall (weighted)
         </text>
       </svg>
+    </div>
+  );
+}
+
+function MiniDomainBar({ value }) {
+  const v = Math.max(0, Math.min(100, Number(value) || 0));
+  const NAVY = "#0B1F3A";
+  const GOLD = "#D4AF37";
+
+  return (
+    <div
+      style={{
+        width: 160,
+        height: 12,
+        borderRadius: 999,
+        background: "rgba(255,255,255,0.10)",
+        overflow: "hidden",
+        border: "1px solid rgba(255,255,255,0.10)",
+      }}
+      aria-label={`Domain score ${fmt(v)} out of 100`}
+      title={`${fmt(v)}`}
+    >
+      <div
+        style={{
+          width: `${v}%`,
+          height: "100%",
+          borderRadius: 999,
+          background: `linear-gradient(90deg, ${NAVY}, ${GOLD})`,
+        }}
+      />
     </div>
   );
 }
@@ -250,15 +280,32 @@ export default function Reports() {
                 <div
                   key={d.domain_id}
                   style={{
-                    display: "flex",
-                    justifyContent: "space-between",
+                    display: "grid",
+                    gridTemplateColumns: "1fr auto auto",
+                    alignItems: "center",
                     gap: 12,
                     borderTop: "1px solid rgba(255,255,255,0.08)",
                     paddingTop: 8,
                   }}
                 >
-                  <div style={{ fontWeight: 700 }}>{d.domain_name}</div>
-                  <div style={{ color: TEXT_DIM }}>{fmt(d.weighted_score)}</div>
+                  <div style={{ fontWeight: 700, minWidth: 0 }}>
+                    <span
+                      style={{
+                        display: "block",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {d.domain_name}
+                    </span>
+                  </div>
+
+                  <MiniDomainBar value={d.weighted_score} />
+
+                  <div style={{ color: TEXT_DIM, width: 70, textAlign: "right" }}>
+                    {fmt(d.weighted_score)}
+                  </div>
                 </div>
               ))
             )}
@@ -324,15 +371,32 @@ export default function Reports() {
               <div
                 key={d.domain_id}
                 style={{
-                  display: "flex",
-                  justifyContent: "space-between",
+                  display: "grid",
+                  gridTemplateColumns: "1fr auto auto",
+                  alignItems: "center",
                   gap: 12,
                   borderTop: "1px solid rgba(255,255,255,0.08)",
                   paddingTop: 8,
                 }}
               >
-                <div style={{ fontWeight: 700 }}>{d.domain_name}</div>
-                <div style={{ color: TEXT_DIM }}>{fmt(d.weighted_score)}</div>
+                <div style={{ fontWeight: 700, minWidth: 0 }}>
+                  <span
+                    style={{
+                      display: "block",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {d.domain_name}
+                  </span>
+                </div>
+
+                <MiniDomainBar value={d.weighted_score} />
+
+                <div style={{ color: TEXT_DIM, width: 70, textAlign: "right" }}>
+                  {fmt(d.weighted_score)}
+                </div>
               </div>
             ))}
           </div>
