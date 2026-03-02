@@ -9,6 +9,7 @@ import Questions from "./pages/Questions";
 import Quizzes from "./pages/Quizzes";
 import Placeholder from "./pages/Placeholder";
 import Admin from "./pages/Admin";
+import Reports from "./pages/Reports";
 
 
 import { apiFetch } from "./lib/api";
@@ -121,8 +122,8 @@ function AppShell() {
     if (active === "questions") return Questions;
     if (active === "admin") return Admin;
     if (active === "quizzes") return Quizzes;
-    if (active === "reports")
-      return () => <Placeholder title="Reports" description="Proficiency breakdown by domain and role-based reporting views." />;
+    if (active === "reports") return Reports;
+    return () => <Placeholder title="Reports" description="Proficiency breakdown by domain and role-based reporting views." />;
     return Dashboard;
   })();
 
