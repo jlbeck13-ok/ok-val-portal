@@ -9,7 +9,6 @@ import Questions from "./pages/Questions";
 import Quizzes from "./pages/Quizzes";
 import Placeholder from "./pages/Placeholder";
 import Admin from "./pages/Admin";
-import Reports from "./pages/Reports";
 
 import { apiFetch } from "./lib/api";
 import { isAdmin } from "./lib/authz";
@@ -394,7 +393,6 @@ function AppShell() {
     if (active === "questions") return Questions;
     if (active === "admin") return Admin;
     if (active === "quizzes") return Quizzes;
-<<<<<<< HEAD
     if (active === "reports") {
       return () => (
         <Placeholder
@@ -403,10 +401,6 @@ function AppShell() {
         />
       );
     }
-=======
-    if (active === "reports") return Reports;
-    return () => <Placeholder title="Reports" description="Proficiency breakdown by domain and role-based reporting views." />;
->>>>>>> 5635ad956199c0ecf0da40a477e91f8b079f9f41
     return Dashboard;
   })();
 
