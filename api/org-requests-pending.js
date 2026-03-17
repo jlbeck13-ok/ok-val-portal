@@ -65,7 +65,7 @@ async function getAppUser(req) {
 
   const u = userRows[0];
 
-  // global role (system-wide)
+  // Global role
   const { rows: globalRoleRows } = await pool.query(
     `select r.role_code
      from public.user_role ur
@@ -79,7 +79,7 @@ async function getAppUser(req) {
   const global_role_code = globalRoleRows[0]?.role_code || "user";
   const is_system_admin = String(global_role_code).toLowerCase() === "system_admin";
 
-  // membership role (active org)
+  // Membership role
   let membership_role_code = null;
 
   if (u.active_organization_id) {
@@ -132,45 +132,79 @@ export default async function handler(req, res) {
       });
     }
 
-    if (!au.user.active_organization_id && !au.user.is_system_admin) {
-      return json(res, 400, {
-        ok: false,
-        error: {
-          code: "NO_ACTIVE_ORG",
-          message: "No active organization selected",
-        },
-      });
+    let query;
+    let params;
+
+    // ✅ SYSTEM ADMIN: ALL REQUESTS
+    if (au.user.is_system_admin) {
+      query = `
+        select
+          r.request_id,
+          r.requester_user_id,
+          u.display_name as requester_display_name,
+          u.email as requester_email,
+
+          r.requested_organization_id,
+          o.organization_name,
+
+          r.requested_role_id,
+          rr.role_code as requested_role_code,
+          rr.role_name as requested_role_name,
+
+          r.status,
+          r.submitted_at,
+          r.created_at
+        from public.organization_membership_request r
+        join public.app_user u on u.user_id = r.requester_user_id
+        join public.organization o on o.organization_id = r.requested_organization_id
+        left join public.role rr on rr.role_id = r.requested_role_id
+        where r.is_active = true
+          and r.status = 'pending'
+        order by coalesce(r.submitted_at, r.created_at) asc
+      `;
+      params = [];
+    } else {
+      // ✅ ORG ADMIN: ONLY THEIR ORG
+      if (!au.user.active_organization_id) {
+        return json(res, 400, {
+          ok: false,
+          error: {
+            code: "NO_ACTIVE_ORG",
+            message: "No active organization selected",
+          },
+        });
+      }
+
+      query = `
+        select
+          r.request_id,
+          r.requester_user_id,
+          u.display_name as requester_display_name,
+          u.email as requester_email,
+
+          r.requested_organization_id,
+          o.organization_name,
+
+          r.requested_role_id,
+          rr.role_code as requested_role_code,
+          rr.role_name as requested_role_name,
+
+          r.status,
+          r.submitted_at,
+          r.created_at
+        from public.organization_membership_request r
+        join public.app_user u on u.user_id = r.requester_user_id
+        join public.organization o on o.organization_id = r.requested_organization_id
+        left join public.role rr on rr.role_id = r.requested_role_id
+        where r.is_active = true
+          and r.status = 'pending'
+          and r.requested_organization_id = $1
+        order by coalesce(r.submitted_at, r.created_at) asc
+      `;
+      params = [au.user.active_organization_id];
     }
 
-    const orgId = au.user.active_organization_id;
-
-    const { rows } = await pool.query(
-      `select
-         r.request_id,
-         r.requester_user_id,
-         u.display_name as requester_display_name,
-         u.email as requester_email,
-
-         r.requested_organization_id,
-         o.organization_name,
-
-         r.requested_role_id,
-         rr.role_code as requested_role_code,
-         rr.role_name as requested_role_name,
-
-         r.status,
-         r.submitted_at,
-         r.created_at
-       from public.organization_membership_request r
-       join public.app_user u on u.user_id = r.requester_user_id
-       join public.organization o on o.organization_id = r.requested_organization_id
-       left join public.role rr on rr.role_id = r.requested_role_id
-       where r.is_active = true
-         and r.status = 'pending'
-         and r.requested_organization_id = $1
-       order by coalesce(r.submitted_at, r.created_at) asc`,
-      [orgId]
-    );
+    const { rows } = await pool.query(query, params);
 
     return json(res, 200, { ok: true, data: rows });
   } catch (e) {

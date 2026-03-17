@@ -10,7 +10,6 @@ import Quizzes from "./pages/Quizzes";
 import Placeholder from "./pages/Placeholder";
 import Admin from "./pages/Admin";
 
-
 import { apiFetch } from "./lib/api";
 import { isAdmin } from "./lib/authz";
 import {
@@ -55,6 +54,251 @@ function BrandWordmark({ size = 18 }) {
   );
 }
 
+function AccessStateCard({ title, subtitle, tone = "warn", children }) {
+  return (
+    <div
+      style={{
+        minHeight: "100vh",
+        background: BG,
+        color: "white",
+        display: "grid",
+        placeItems: "center",
+        padding: 16,
+      }}
+    >
+      <div
+        style={{
+          width: "100%",
+          maxWidth: 720,
+          border: `1px solid ${BORDER}`,
+          background: "rgba(255,255,255,0.04)",
+          borderRadius: 22,
+          padding: 20,
+          boxShadow: "0 20px 60px rgba(0,0,0,0.40)",
+          display: "grid",
+          gap: 14,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ width: 46, height: 46, display: "grid", placeItems: "center" }}>
+              <OkValLogo size={44} />
+            </div>
+            <div>
+              <BrandWordmark size={20} />
+              <div style={{ marginTop: 6, color: TEXT_DIM, fontSize: 13, lineHeight: 1.4 }}>
+                Oklahoma Valuation Portal
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <Pill tone={tone}>
+              <Icon name="dot" /> {title}
+            </Pill>
+            <UserButton />
+          </div>
+        </div>
+
+        <div style={{ fontSize: 24, fontWeight: 1000, letterSpacing: 0.2 }}>{title}</div>
+        <div style={{ color: TEXT_DIM, fontSize: 14, lineHeight: 1.55 }}>{subtitle}</div>
+
+        <div
+          style={{
+            border: `1px solid ${BORDER}`,
+            background: "rgba(255,255,255,0.03)",
+            borderRadius: 18,
+            padding: 16,
+            display: "grid",
+            gap: 12,
+          }}
+        >
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PendingApprovalView({ me, onRefresh, loadingRefresh }) {
+  const orgName =
+    me?.active_organization?.organization_name ||
+    me?.organization?.organization_name ||
+    me?.pending_request?.organization_name ||
+    "your selected organization";
+
+  const submittedAt =
+    me?.pending_request?.submitted_at ||
+    me?.pending_request?.created_at ||
+    null;
+
+  return (
+    <AccessStateCard
+      title="Pending approval"
+      subtitle="Your account is signed in, but access to the portal is not available until your organization request is approved."
+      tone="warn"
+    >
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <Pill>
+          <Icon name="dot" /> {me?.display_name || me?.email || "Signed in"}
+        </Pill>
+        <Pill tone="warn">
+          <Icon name="dot" /> Request status: {me?.pending_request?.status || "pending"}
+        </Pill>
+        <Pill>
+          <Icon name="dot" /> Organization: {orgName}
+        </Pill>
+      </div>
+
+      {submittedAt ? (
+        <div style={{ fontSize: 13, color: TEXT_DIM, lineHeight: 1.5 }}>
+          Request submitted: {String(submittedAt)}
+        </div>
+      ) : null}
+
+      <div style={{ fontSize: 13, color: TEXT_DIM_2, lineHeight: 1.5 }}>
+        Once an Assessor, Director, or System Admin approves your request, you will be able to access the application.
+      </div>
+
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+        <GhostButton
+          onClick={onRefresh}
+          icon={<Icon name="refresh" />}
+          ariaLabel="Refresh approval status"
+          disabled={loadingRefresh}
+        >
+          {loadingRefresh ? "Refreshing…" : "Check approval status"}
+        </GhostButton>
+      </div>
+    </AccessStateCard>
+  );
+}
+
+function RequestAccessView({ me, getToken, onSubmitted }) {
+  const [orgs, setOrgs] = useState([]);
+  const [selectedOrgId, setSelectedOrgId] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [working, setWorking] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadOrgs() {
+      try {
+        setLoading(true);
+        setError("");
+
+        const orgResp = await apiFetch(getToken, "/api/organizations");
+        const rows = orgResp?.data || [];
+
+        if (!mounted) return;
+
+        setOrgs(rows);
+        setSelectedOrgId(rows?.[0]?.organization_id || "");
+      } catch (e) {
+        if (!mounted) return;
+        setError(String(e?.message || e));
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    }
+
+    loadOrgs();
+    return () => {
+      mounted = false;
+    };
+  }, [getToken]);
+
+  async function submitOrgRequest() {
+    try {
+      setWorking(true);
+      setError("");
+
+      if (!selectedOrgId) {
+        setError("Select an organization first.");
+        return;
+      }
+
+      await apiFetch(getToken, "/api/org-requests", {
+        method: "POST",
+        body: JSON.stringify({ requested_organization_id: selectedOrgId }),
+      });
+
+      await onSubmitted?.();
+    } catch (e) {
+      setError(String(e?.message || e));
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  return (
+    <AccessStateCard
+      title="Access required"
+      subtitle="Your account is signed in, but you do not have approved organization access yet."
+      tone="bad"
+    >
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <Pill>
+          <Icon name="dot" /> {me?.display_name || me?.email || "Signed in"}
+        </Pill>
+        <Pill tone="bad">
+          <Icon name="dot" /> Not approved
+        </Pill>
+      </div>
+
+      <div style={{ display: "grid", gap: 8, maxWidth: 560 }}>
+        <div style={{ fontSize: 12, color: TEXT_DIM_2, fontWeight: 900 }}>Organization</div>
+        <select
+          value={selectedOrgId}
+          onChange={(e) => setSelectedOrgId(e.target.value)}
+          disabled={loading || working}
+          style={{
+            width: "100%",
+            padding: "10px 12px",
+            borderRadius: 12,
+            border: "1px solid rgba(255,255,255,0.14)",
+            background: "rgba(0,0,0,0.25)",
+            color: "white",
+            outline: "none",
+          }}
+        >
+          <option value="">
+            {loading ? "Loading organizations..." : "Select an organization"}
+          </option>
+          {(orgs || []).map((o) => (
+            <option key={o.organization_id} value={o.organization_id}>
+              {o.organization_name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {error ? (
+        <Pill tone="bad">
+          <Icon name="dot" /> {error}
+        </Pill>
+      ) : null}
+
+      <div style={{ fontSize: 13, color: TEXT_DIM_2, lineHeight: 1.5 }}>
+        Submitting a request does not grant access. Your account will remain blocked until the request is approved.
+      </div>
+
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+        <GhostButton
+          onClick={submitOrgRequest}
+          icon={<Icon name="check" />}
+          ariaLabel="Request access"
+          disabled={loading || working || !selectedOrgId}
+        >
+          {working ? "Submitting…" : "Request access"}
+        </GhostButton>
+      </div>
+    </AccessStateCard>
+  );
+}
+
 function AppShell() {
   const { getToken } = useAuth();
   const isMobile = useIsMobile(980);
@@ -71,11 +315,12 @@ function AppShell() {
       setStatus("loading");
       setError("");
       const json = await apiFetch(getToken, "/api/me");
-      setMe(json.data);
+      setMe(json?.data || null);
       setStatus("ok");
     } catch (e) {
       setStatus("error");
       setError(String(e?.message || e));
+      setMe(null);
     }
   }
 
@@ -83,6 +328,33 @@ function AppShell() {
     loadMe();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const authz = useMemo(() => {
+    const globalRoleCode = String(me?.global_role_code || "").trim().toLowerCase();
+    const membershipRoleCode = String(me?.membership_role_code || "").trim().toLowerCase();
+
+    const hasApprovedRole =
+      !!globalRoleCode || !!membershipRoleCode || Array.isArray(me?.roles) && me.roles.length > 0;
+
+    const hasApprovedOrg =
+      !!me?.active_organization_id ||
+      !!me?.organization_id ||
+      !!me?.active_organization?.organization_id ||
+      !!me?.organization?.organization_id;
+
+    const hasPendingRequest =
+      !!me?.pending_request &&
+      String(me?.pending_request?.status || "pending").toLowerCase() === "pending";
+
+    const isApproved = hasApprovedOrg && hasApprovedRole;
+
+    return {
+      hasApprovedOrg,
+      hasApprovedRole,
+      hasPendingRequest,
+      isApproved,
+    };
+  }, [me]);
 
   const nav = useMemo(() => {
     const base = [
@@ -121,14 +393,70 @@ function AppShell() {
     if (active === "questions") return Questions;
     if (active === "admin") return Admin;
     if (active === "quizzes") return Quizzes;
-    if (active === "reports")
-      return () => <Placeholder title="Reports" description="Proficiency breakdown by domain and role-based reporting views." />;
+    if (active === "reports") {
+      return () => (
+        <Placeholder
+          title="Reports"
+          description="Proficiency breakdown by domain and role-based reporting views."
+        />
+      );
+    }
     return Dashboard;
   })();
 
   const activeLabel = nav.find((x) => x.key === active)?.label || "Overview";
-  const orgName = me?.organization?.organization_name || null;
-  const roleName = me?.roles?.[0]?.role_name || null;
+  const orgName =
+    me?.active_organization?.organization_name ||
+    me?.organization?.organization_name ||
+    null;
+  const roleName =
+    me?.membership_role_name ||
+    me?.roles?.[0]?.role_name ||
+    me?.global_role_name ||
+    null;
+
+  if (status === "loading") {
+    return (
+      <AccessStateCard
+        title="Loading"
+        subtitle="Checking your account access."
+        tone="warn"
+      >
+        <Pill tone="warn">
+          <Icon name="dot" /> Loading account status…
+        </Pill>
+      </AccessStateCard>
+    );
+  }
+
+  if (status === "error") {
+    return (
+      <AccessStateCard
+        title="Unable to verify access"
+        subtitle="The app could not load your account status from /api/me, so access is blocked."
+        tone="bad"
+      >
+        <div style={{ fontSize: 13, color: TEXT_DIM, lineHeight: 1.5 }}>{error}</div>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <GhostButton
+            onClick={loadMe}
+            icon={<Icon name="refresh" />}
+            ariaLabel="Retry account check"
+          >
+            Retry
+          </GhostButton>
+        </div>
+      </AccessStateCard>
+    );
+  }
+
+  if (!authz.isApproved && authz.hasPendingRequest) {
+    return <PendingApprovalView me={me} onRefresh={loadMe} loadingRefresh={status === "loading"} />;
+  }
+
+  if (!authz.isApproved) {
+    return <RequestAccessView me={me} getToken={getToken} onSubmitted={loadMe} />;
+  }
 
   return (
     <div style={{ minHeight: "100vh", background: BG, color: "white" }}>
@@ -207,7 +535,6 @@ function AppShell() {
                 <div style={{ minWidth: 0 }}>
                   <BrandWordmark size={18} />
 
-                  {/* Dynamic breadcrumb line: Page • Org • Role */}
                   <div
                     style={{
                       fontSize: 12,
@@ -243,14 +570,13 @@ function AppShell() {
             </div>
 
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <Pill tone={status === "ok" ? "ok" : status === "error" ? "bad" : "warn"}>
-                <Icon name="dot" /> {status}
+              <Pill tone="ok">
+                <Icon name="dot" /> authorized
               </Pill>
               <UserButton />
             </div>
           </header>
 
-          {/* Make main content use the full available width, not a fixed max */}
           <main
             style={{
               width: "100%",
@@ -267,17 +593,7 @@ function AppShell() {
                 padding: 16,
               }}
             >
-              {status === "error" ? (
-                <div style={{ display: "grid", gap: 10 }}>
-                  <div style={{ fontSize: 16, fontWeight: 1000 }}>Unable to load /api/me</div>
-                  <div style={{ color: TEXT_DIM, fontSize: 13, lineHeight: 1.5 }}>{error}</div>
-                  <div style={{ color: TEXT_DIM_2, fontSize: 12 }}>
-                    If this persists, check Vercel env vars and server logs for /api/me.
-                  </div>
-                </div>
-              ) : (
-                <Page me={me} status={status} error={error} onRefresh={loadMe} getToken={getToken} />
-              )}
+              <Page me={me} status={status} error={error} onRefresh={loadMe} getToken={getToken} />
             </div>
           </main>
         </div>
