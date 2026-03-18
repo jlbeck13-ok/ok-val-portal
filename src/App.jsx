@@ -9,6 +9,7 @@ import Questions from "./pages/Questions";
 import Quizzes from "./pages/Quizzes";
 import Placeholder from "./pages/Placeholder";
 import Admin from "./pages/Admin";
+import Reports from "./pages/Reports";
 
 import { apiFetch } from "./lib/api";
 import { isAdmin } from "./lib/authz";
